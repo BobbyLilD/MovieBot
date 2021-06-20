@@ -8,6 +8,11 @@ bot = telebot.TeleBot('1766116714:AAGJyONFIFHy-X1T3Nj4V16D487GliyaTXw')
 global driver
 driver = webdriver.Firefox()
 
+def getInfoList(soup):
+    divs = soup.xpath('//div[@data-tid="a25321e6"]')
+    print(divs)
+    return divs
+
 def getAlternateName(soup, data):
     name = soup.xpath('//span[@class="styles_originalTitle__31aMS"]/text()')
     if len(name) > 0:
@@ -32,12 +37,35 @@ def getCountry(soup,data):
         res.append(i.xpath("./text()")[0])
     resString = "Страна производства - " + ", ".join(res)
     data.append(resString)
+
+    for i in soup:
+        if i.xpath('./div')[0].xpath('./text()')[0] == "Слоган":
+            countires = i.xpath('./div')[1]
+            print("Found Countries")
+            #for ДОДЕЛАТЬ
+            soup.remove(i)
+            #data.append("Слоган - " + ','.join(slogan)) СНЯТЬ КОММЕНТ, ЗАМЕНИТЬ ПЕРЕМЕННУЮ
+
     return data
 
 def getSlogan(soup, data):
-    div = soup.xpath('//div[@data-tid="849d1be2"]/div/text()')
-    if len(div) > 0:
-        data.append(f"Слоган - {div[0]}")
+
+    for i in soup:
+        if i.xpath('./div')[0].xpath('./text()')[0] == "Слоган":
+            slogan = i.xpath('./div')[1].xpath('./div/text()')
+            print("Found Slogan")
+            soup.remove(i)
+            data.append("Слоган - " + ','.join(slogan))
+
+    return data
+
+def getDirector(soup, data):
+    for i in soup:
+        if i.xpath('./div')[0].xpath('./text()')[0] == "Режиссер":
+            directors = i.xpath('./div')[1].xpath('./a/text()')
+            print("Found Director")
+            soup.remove(i)
+            data.append("Режиссер - " + ','.join(directors))
 
     return data
 
@@ -71,13 +99,15 @@ def get_movies_info(message):
     driver.get(infoLink)
     # ЗАМЕНА НА LXML
     soup = html.fromstring(driver.page_source)
+    infoDivs = getInfoList(soup)
 
     data = []
     data = getAlternateName(soup, data)
     poster = getPoster(soup)
     data = getProductionYear(soup, data)
     data = getCountry(soup, data)
-    data = getSlogan(soup, data)
+    data = getSlogan(infoDivs, data)
+    data = getDirector(infoDivs, data)
 
     bot.send_photo(message.from_user.id, poster)
     bot.send_message(message.from_user.id, "\n".join(data))
