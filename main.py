@@ -1,17 +1,79 @@
 import telebot
+from telebot import types
 import urllib.request
 import urllib.parse
 from selenium import webdriver
 from lxml import html
+from telebot.types import InputMediaPhoto
+
 bot = telebot.TeleBot('1766116714:AAGJyONFIFHy-X1T3Nj4V16D487GliyaTXw')
 
 global driver
 driver = webdriver.Firefox()
+global infoDivs
+infoDivs = None
+global sourceForPhotos
+sourceForPhotos = None
+global messageForInline
+messageForInline = None
+
+
+def getBudgetInfo(soup):
+    data = []
+    for i in soup:
+        if i.xpath('./div')[0].xpath('./text()')[0] == "Бюджет":
+            budget = i.xpath('./div')[1].xpath('./a/text()')[0]
+            print("Found Budget")
+            soup.remove(i)
+            data.append("Бюджет - " + budget)
+        elif i.xpath('./div')[0].xpath('./text()')[0] == "Маркетинг":
+            marketing = i.xpath('./div')[1].xpath('./a/text()')[0]
+            print("Found Marketing")
+            soup.remove(i)
+            data.append("Маркетинг - " + marketing)
+        elif i.xpath('./div')[0].xpath('./text()')[0] == "Сборы в США":
+            USAbox = i.xpath('./div')[1].xpath('./a/text()')[0]
+            print("Found USA box office")
+            soup.remove(i)
+            data.append("Сборы в США - " + USAbox)
+        elif i.xpath('./div')[0].xpath('./text()')[0] == "Сборы в мире":
+            worldwide = i.xpath('./div')[1].xpath('./a/text()')[0]
+            print("Found Worldwide box office")
+            soup.remove(i)
+            data.append("Сборы в мире - " + worldwide[worldwide.find('=') + 1:])
+        elif i.xpath('./div')[0].xpath('./text()')[0] == "Сборы в России":
+            russia = i.xpath('./div')[1].xpath('./a/text()')[0]
+            print("Found Russia box office")
+            soup.remove(i)
+            data.append("Маркетинг - " + russia)
+    return data
+
+
+def getShots(soup):
+    link = soup.xpath('//div[@data-tid="5c85b95c"]/a[contains(@href, "images")]/@href')
+    if len(link) > 0:
+        print(link)
+        url_new = "https://www.kinopoisk.ru" + link[0]
+        driver.get(url_new)
+        soup = html.fromstring(driver.page_source)
+        photoTableRows = soup.xpath('//table[@class="js-rum-hero fotos fotos2"]')[0].xpath('./td')
+        data = []
+        for i in range(photoTableRows):
+            if i > 1:
+                break
+            columns = photoTableRows[i].xpath('./tr')
+            for j in columns:
+                imageLink = j.xpath('./a/img/@src')
+                data.append(imageLink)
+        return data
+    return None
+
 
 def getInfoList(soup):
     divs = soup.xpath('//div[@data-tid="a25321e6"]')
     print(divs)
     return divs
+
 
 def getAlternateName(soup, data):
     name = soup.xpath('//span[@class="styles_originalTitle__31aMS"]/text()')
@@ -19,37 +81,42 @@ def getAlternateName(soup, data):
         data.append(f'Альтернативное название фильма - {name[0]}')
     return data
 
+
 def getPoster(soup):
-    poster = soup.xpath('//a[@class="styles_posterLink__1agYl"]/img/@src')[0]
-    return poster[2:]
+    poster = soup.xpath('//a[@class="styles_posterLink__1agYl"]/img/@src')
+    if poster is not []:
+        return poster[0][2:]
+    else:
+        return None
+
 
 def getProductionYear(soup, data):
-    div = soup.xpath('//div[@data-tid="a189db02"]/a/text()')[0]
-    data.append(f'Год производства - {div}')
+    for i in soup:
+        if i.xpath('./div')[0].xpath('./text()')[0] == "Год производства":
+            yearOfProdution = i.xpath('./div')[1].xpath('./a/text()')[0]
+            print("Found YearOfProd")
+            soup.remove(i)
+            data.append("Год производства - " + yearOfProdution)
 
     return data
 
-def getCountry(soup,data):
-    div = soup\
-        .xpath('//div[@data-tid="df943f2f"]/a[@data-tid="60f1c547"][starts-with(@href, "/lists/navigator/country")]')
-    res = []
-    for i in div:
-        res.append(i.xpath("./text()")[0])
-    resString = "Страна производства - " + ", ".join(res)
-    data.append(resString)
 
+def getCountry(soup, data):
     for i in soup:
-        if i.xpath('./div')[0].xpath('./text()')[0] == "Слоган":
+        if i.xpath('./div')[0].xpath('./text()') == "Страна":
             countires = i.xpath('./div')[1]
             print("Found Countries")
-            #for ДОДЕЛАТЬ
+            res = []
+            for j in countires:
+                country = j.xpath('./a/text()')[0]
+                res.append(country)
             soup.remove(i)
-            #data.append("Слоган - " + ','.join(slogan)) СНЯТЬ КОММЕНТ, ЗАМЕНИТЬ ПЕРЕМЕННУЮ
+            data.append("Страна - " + ','.join(res))
 
     return data
 
-def getSlogan(soup, data):
 
+def getSlogan(soup, data):
     for i in soup:
         if i.xpath('./div')[0].xpath('./text()')[0] == "Слоган":
             slogan = i.xpath('./div')[1].xpath('./div/text()')
@@ -58,6 +125,7 @@ def getSlogan(soup, data):
             data.append("Слоган - " + ','.join(slogan))
 
     return data
+
 
 def getDirector(soup, data):
     for i in soup:
@@ -71,24 +139,78 @@ def getDirector(soup, data):
 
 
 def soupParseWantedName(soup):
-    link = soup.xpath('//div[@class="element most_wanted"]/div[@class="info"]/p/a/@href')[0]
-    print(link)
-    url_new = "https://www.kinopoisk.ru" + link
-    return url_new
+    link = soup.xpath('//div[@class="element most_wanted"]/div[@class="info"]/p/a/@href')
+    if len(link) > 0:
+        print(link)
+        url_new = "https://www.kinopoisk.ru" + link[0]
+        return url_new
+    else:
+        return None
+
+
+def sendOptionalMessage(message):
+    btnBudget = types.InlineKeyboardButton(text="Бюджет и сборы", callback_data="Budget")
+    btnShots = types.InlineKeyboardButton(text="Кадры из фильма", callback_data="Shots")
+    btnNewMovie = types.InlineKeyboardButton(text="Найти новый фильм", callback_data="New")
+    rows = []
+    rows.append([btnBudget])
+    rows.append([btnShots])
+    rows.append([btnNewMovie])
+    key = types.InlineKeyboardMarkup(keyboard=rows)
+    global messageForInline
+    messageForInline = message
+    bot.send_message(message.from_user.id, "Выбери дальнейшее действие", reply_markup=key)
+
+
+@bot.callback_query_handler(func=lambda c: True)
+def optionalResponse(c):
+    print("InlineResponse")
+    if c.data == "Budget":
+        if infoDivs is not None:
+            data = getBudgetInfo(infoDivs)
+            bot.send_message(c.from_user.id, "\n".join(data))
+            sendOptionalMessage(messageForInline)
+        else:
+            bot.send_message(c.from_user.id, "Упс, что-то пошло не так(")
+            sendOptionalMessage(messageForInline)
+        # ОТОБРАЖЕНИЕ БЮДЖЕТА И СБОРОВ
+    elif c.data == "Shots":
+        if sourceForPhotos is not None:
+            data = getShots(sourceForPhotos)
+            if data is not None:
+                bot.send_media_group(c.from_user.id, [InputMediaPhoto(i) for i in data])
+                sendOptionalMessage(messageForInline)
+            else:
+                bot.send_message(c.from_user.id, "Упс, что-то пошло не так(")
+                sendOptionalMessage(c.chat_instance)
+        # ОТОБРАЖЕНИЕ СКРИНОВ ИЗ ФИЛЬМА
+    elif c.data == "New":
+        print('New movie trigger')
+        bot.send_message(c.from_user.id, 'Введи название фильма!')
+        bot.register_next_step_handler(c.message, get_movies_info)
+
 
 @bot.message_handler(commands=['start'])
 def send_start_response(messsage):
     bot.send_message(messsage.from_user.id, f'Привет, {messsage.from_user.first_name} ! \n '
                                             f'Напиши /new, чтобы найти информацию о любом фильме!')
 
+
 @bot.message_handler(commands=['help'])
 def send_help_response(message):
     bot.send_message(message.from_user.id, 'Напиши /new, чтобы найти информацию о любом фильме!')
+
+
+@bot.message_handler(types=['text'])
+def send_random_text_response(message):
+    bot.send_message(message.from_user.id, 'Напиши /new, чтобы найти информацию о любом фильме!')
+
 
 @bot.message_handler(commands=['new'])
 def send_new_response(messsage):
     bot.send_message(messsage.from_user.id, 'Введи название фильма!')
     bot.register_next_step_handler(messsage, get_movies_info)
+
 
 def get_movies_info(message):
     req = message.text
@@ -96,22 +218,37 @@ def get_movies_info(message):
     driver.get(res_url + urllib.parse.quote_plus(req))
     soup = html.fromstring(driver.page_source)
     infoLink = soupParseWantedName(soup)
-    driver.get(infoLink)
-    # ЗАМЕНА НА LXML
-    soup = html.fromstring(driver.page_source)
-    infoDivs = getInfoList(soup)
+    if infoLink is not None:
+        driver.get(infoLink)
+        # ЗАМЕНА НА LXML
+        soup = html.fromstring(driver.page_source)
+        global sourceForPhotos
+        sourceForPhotos = soup
+        global infoDivs
+        infoDivs = getInfoList(soup)
+        if infoDivs is not []:
+            data = []
+            data = getAlternateName(soup, data)
+            poster = getPoster(soup)
+            data = getProductionYear(infoDivs, data)
+            data = getCountry(infoDivs, data)
+            data = getSlogan(infoDivs, data)
+            data = getDirector(infoDivs, data)
 
-    data = []
-    data = getAlternateName(soup, data)
-    poster = getPoster(soup)
-    data = getProductionYear(soup, data)
-    data = getCountry(soup, data)
-    data = getSlogan(infoDivs, data)
-    data = getDirector(infoDivs, data)
+            if poster is not None:
+                bot.send_photo(message.from_user.id, poster)
+            if data:
+                bot.send_message(message.from_user.id, "\n".join(data))
+                sendOptionalMessage(message)
+        else:
+            bot.send_message(message.from_user.id, "Упс, что-то пошло не так( \n"
+                                                   "Попробуй ещё раз ввести название фильма!")
+            bot.register_next_step_handler(message, get_movies_info)
 
-    bot.send_photo(message.from_user.id, poster)
-    bot.send_message(message.from_user.id, "\n".join(data))
+    else:
+        bot.send_message(message.from_user.id, "Прости, я не понимаю, о каком фильме ты говоришь( \n"
+                                               "Можешь, пожалуйста, перефразировать?")
+        bot.register_next_step_handler(message, get_movies_info)
 
 
 bot.polling(none_stop=True)
-
