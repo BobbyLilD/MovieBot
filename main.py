@@ -16,7 +16,7 @@ infoDivs = None
 global sourceForPhotos
 sourceForPhotos = None
 
-
+#Получение информации о бюджете и сборах
 def getBudgetInfo(soup):
     data = []
     for i in soup:
@@ -47,6 +47,7 @@ def getBudgetInfo(soup):
             data.append("Маркетинг - " + russia)
     return data
 
+#Получение информации о жанрах
 def getGenre(soup,data):
     for i in soup:
         if i.xpath('./div')[0].xpath('./text()')[0] == "Жанр":
@@ -62,6 +63,7 @@ def getGenre(soup,data):
     return data
 
 
+#Получение кадров из фильма
 def getShots(soup):
     link = soup.xpath('//div[@data-tid="5c85b95c"]/a[contains(@href, "images")]/@href')
     if len(link) > 0:
@@ -82,20 +84,20 @@ def getShots(soup):
         return data
     return None
 
-
+#Получение div-ов с нужной информацией
 def getInfoList(soup):
     divs = soup.xpath('//div[@data-tid="a25321e6"]')
     print(divs)
     return divs
 
-
+#Получение альтернативного названия
 def getAlternateName(soup, data):
     name = soup.xpath('//span[@class="styles_originalTitle__31aMS"]/text()')
     if len(name) > 0:
         data.append(f'Альтернативное название фильма - {name[0]}')
     return data
 
-
+#Получение постера фильма
 def getPoster(soup):
     poster = soup.xpath('//a[@class="styles_posterLink__1agYl"]/img/@src')
     if poster is not []:
@@ -103,7 +105,7 @@ def getPoster(soup):
     else:
         return None
 
-
+#Получение года производства
 def getProductionYear(soup, data):
     for i in soup:
         if i.xpath('./div')[0].xpath('./text()')[0] == "Год производства":
@@ -114,7 +116,7 @@ def getProductionYear(soup, data):
 
     return data
 
-
+#Получение страны производителя
 def getCountry(soup, data):
     for i in soup:
         if i.xpath('./div')[0].xpath('./text()')[0] == "Страна":
@@ -130,7 +132,7 @@ def getCountry(soup, data):
 
     return data
 
-
+#Получение слогана фильма
 def getSlogan(soup, data):
     for i in soup:
         if i.xpath('./div')[0].xpath('./text()')[0] == "Слоган":
@@ -142,7 +144,7 @@ def getSlogan(soup, data):
 
     return data
 
-
+#Получение информации о режиссере
 def getDirector(soup, data):
     for i in soup:
         if i.xpath('./div')[0].xpath('./text()')[0] == "Режиссер":
@@ -153,7 +155,7 @@ def getDirector(soup, data):
 
     return data
 
-
+#Обработка введенного пользователем названия
 def soupParseWantedName(soup):
     link = soup.xpath('//div[@class="element most_wanted"]/div[@class="info"]/p/a/@href')
     if len(link) > 0:
@@ -163,7 +165,7 @@ def soupParseWantedName(soup):
     else:
         return None
 
-
+#Создание 3 кнопок для дополнительных опций взаимодействия
 def sendOptionalMessage(message):
     btnBudget = types.InlineKeyboardButton(text="Бюджет и сборы", callback_data="Budget")
     btnShots = types.InlineKeyboardButton(text="Кадры из фильма", callback_data="Shots")
@@ -175,13 +177,14 @@ def sendOptionalMessage(message):
     key = types.InlineKeyboardMarkup(keyboard=rows)
     bot.send_message(message, "Выбери дальнейшее действие", reply_markup=key)
 
+#Создание главной кнопки для взаимодействия с ботом
 def send_start_option(message):
     btnNewMovie = types.InlineKeyboardButton(text="Найти фильм", callback_data="New")
     key = types.InlineKeyboardMarkup()
     key.add(btnNewMovie)
     bot.send_message(message, "Нажми на кнопку, чтобы найти информацию о любом фильме!", reply_markup=key)
 
-
+#Обработчик выбора определенной кнопки
 @bot.callback_query_handler(func=lambda c: True)
 def optionalResponse(c):
     print("InlineResponse")
@@ -210,29 +213,23 @@ def optionalResponse(c):
         bot.send_message(c.message.chat.id, 'Введи название фильма!')
         bot.register_next_step_handler(c.message, get_movies_info)
 
-
+#Обработчик команды start
 @bot.message_handler(commands=['start'])
 def send_start_response(messsage):
     bot.send_message(messsage.from_user.id, f'Привет, {messsage.from_user.first_name} !')
     send_start_option(messsage.chat.id)
 
-
+#Обработчик команды help
 @bot.message_handler(commands=['help'])
 def send_help_response(message):
     send_start_option(message.chat.id)
 
-
+#Обработчик любых сообщений кроме тех, что предусмотрены сценарием работы
 @bot.message_handler(content_types=['text'])
 def send_random_text_response(message):
     send_start_option(message.chat.id)
 
-
-@bot.message_handler(commands=['new'])
-def send_new_response(messsage):
-    bot.send_message(messsage.from_user.id, 'Введи название фильма!')
-    bot.register_next_step_handler(messsage, get_movies_info)
-
-
+#Метод получающий главную информацию о фильме и посылающий её в чат
 def get_movies_info(message):
     req = message.text
     res_url = "https://www.kinopoisk.ru/index.php?kp_query="
@@ -272,5 +269,5 @@ def get_movies_info(message):
                                                "Можешь, пожалуйста, перефразировать?")
         bot.register_next_step_handler(message, get_movies_info)
 
-
+#Систематический вызов апдейта по сообщениям
 bot.polling(none_stop=True)
